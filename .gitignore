@@ -1,0 +1,12 @@
+# Build output
+/stackia
+/bin/
+*.exe
+
+# Runtime data (index, KV store, bloom filter)
+/data/
+
+# Local overrides & scratch
+*.local.yaml
+*.log
+.DS_Store

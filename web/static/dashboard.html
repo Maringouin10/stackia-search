@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stackia · Live Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="h-full bg-slate-900 text-slate-100">
+  <div class="max-w-6xl mx-auto px-5 py-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <span class="inline-block w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-sky-400"></span>
+        <h1 class="text-xl font-semibold tracking-tight">Stackia — Crawl Analytics</h1>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <span id="dot" class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+        <span id="status" class="text-slate-400">connecting…</span>
+        <a href="/" class="text-slate-400 hover:text-indigo-300">Search →</a>
+      </div>
+    </div>
+
+    <!-- Primary stat tiles -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="rounded-xl bg-slate-800/70 border border-slate-700 p-4">
+        <div class="text-xs text-slate-400">Crawl speed</div>
+        <div class="mt-1"><span id="rate" class="text-3xl font-bold text-emerald-400">0.0</span>
+          <span class="text-xs text-slate-400">pages/s</span></div>
+      </div>
+      <div class="rounded-xl bg-slate-800/70 border border-slate-700 p-4">
+        <div class="text-xs text-slate-400">Pages indexed</div>
+        <div class="mt-1"><span id="docs" class="text-3xl font-bold text-indigo-300">0</span></div>
+      </div>
+      <div class="rounded-xl bg-slate-800/70 border border-slate-700 p-4">
+        <div class="text-xs text-slate-400">Queue depth</div>
+        <div class="mt-1"><span id="queue" class="text-3xl font-bold text-sky-300">0</span></div>
+      </div>
+      <div class="rounded-xl bg-slate-800/70 border border-slate-700 p-4">
+        <div class="text-xs text-slate-400">Active workers</div>
+        <div class="mt-1"><span id="workers" class="text-3xl font-bold text-amber-300">0</span></div>
+      </div>
+    </div>
+
+    <!-- Chart + resource gauges -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <div class="lg:col-span-2 rounded-xl bg-slate-800/70 border border-slate-700 p-4">
+        <div class="text-xs text-slate-400 mb-2">Crawl speed (last 60 samples)</div>
+        <canvas id="chart" height="160" class="w-full"></canvas>
+      </div>
+      <div class="rounded-xl bg-slate-800/70 border border-slate-700 p-4 space-y-4">
+        <div>
+          <div class="flex justify-between text-xs text-slate-400"><span>CPU</span><span id="cpuTxt">0%</span></div>
+          <div class="h-2 bg-slate-700 rounded mt-1"><div id="cpuBar" class="h-2 bg-rose-400 rounded" style="width:0%"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between text-xs text-slate-400"><span>RSS (process)</span><span id="rssTxt">0 MB</span></div>
+          <div class="h-2 bg-slate-700 rounded mt-1"><div id="rssBar" class="h-2 bg-fuchsia-400 rounded" style="width:0%"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between text-xs text-slate-400"><span>Go heap</span><span id="heapTxt">0 MB</span></div>
+          <div class="h-2 bg-slate-700 rounded mt-1"><div id="heapBar" class="h-2 bg-teal-400 rounded" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Secondary counters -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+      <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-3">
+        <div class="text-xs text-slate-400">Fetched</div><div id="fetched" class="text-lg font-semibold">0</div></div>
+      <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-3">
+        <div class="text-xs text-slate-400">Failed</div><div id="failed" class="text-lg font-semibold text-rose-300">0</div></div>
+      <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-3">
+        <div class="text-xs text-slate-400">URLs deduped</div><div id="dedup" class="text-lg font-semibold">0</div></div>
+      <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-3">
+        <div class="text-xs text-slate-400">Index size</div><div id="index" class="text-lg font-semibold">0 MB</div></div>
+      <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-3">
+        <div class="text-xs text-slate-400">Store size</div><div id="store" class="text-lg font-semibold">0 MB</div></div>
+      <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-3">
+        <div class="text-xs text-slate-400">Bytes fetched</div><div id="bytes" class="text-lg font-semibold">0 MB</div></div>
+      <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-3">
+        <div class="text-xs text-slate-400">Goroutines</div><div id="gor" class="text-lg font-semibold">0</div></div>
+      <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-3">
+        <div class="text-xs text-slate-400">Uptime</div><div id="up" class="text-lg font-semibold">0s</div></div>
+    </div>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+    const MB = 1024 * 1024;
+    const fmtMB = (b) => (b / MB).toFixed(1) + " MB";
+    const fmtInt = (n) => (n || 0).toLocaleString();
+    const fmtDur = (s) => {
+      s = Math.floor(s);
+      const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
+      return (h?h+"h ":"") + (m?m+"m ":"") + ss + "s";
+    };
+
+    // Tiny dependency-free line chart on a canvas.
+    const history = [];
+    const cvs = el("chart"), ctx = cvs.getContext("2d");
+    function resize() { cvs.width = cvs.clientWidth * devicePixelRatio; cvs.height = 160 * devicePixelRatio; }
+    window.addEventListener("resize", resize); resize();
+    function drawChart() {
+      const w = cvs.width, h = cvs.height, pad = 8 * devicePixelRatio;
+      ctx.clearRect(0, 0, w, h);
+      if (history.length < 2) return;
+      const max = Math.max(1, ...history);
+      ctx.lineWidth = 2 * devicePixelRatio;
+      ctx.strokeStyle = "#34d399";
+      ctx.beginPath();
+      history.forEach((v, i) => {
+        const x = pad + (w - 2*pad) * (i / (history.length - 1));
+        const y = h - pad - (h - 2*pad) * (v / max);
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      });
+      ctx.stroke();
+      ctx.globalAlpha = 0.12; ctx.lineTo(w - pad, h - pad); ctx.lineTo(pad, h - pad);
+      ctx.closePath(); ctx.fillStyle = "#34d399"; ctx.fill(); ctx.globalAlpha = 1;
+    }
+
+    function apply(s) {
+      el("rate").textContent = s.crawl_rate.toFixed(1);
+      el("docs").textContent = fmtInt(s.docs_indexed);
+      el("queue").textContent = fmtInt(s.queue_depth);
+      el("workers").textContent = fmtInt(s.active_workers);
+      el("fetched").textContent = fmtInt(s.pages_fetched);
+      el("failed").textContent = fmtInt(s.pages_failed);
+      el("dedup").textContent = fmtInt(s.urls_deduped);
+      el("index").textContent = fmtMB(s.index_bytes);
+      el("store").textContent = fmtMB(s.store_bytes);
+      el("bytes").textContent = fmtMB(s.bytes_fetched);
+      el("gor").textContent = fmtInt(s.goroutines);
+      el("up").textContent = fmtDur(s.uptime_sec);
+
+      const cpu = Math.min(100, s.cpu_percent);
+      el("cpuTxt").textContent = cpu.toFixed(0) + "%";
+      el("cpuBar").style.width = cpu + "%";
+      el("rssTxt").textContent = fmtMB(s.rss_bytes);
+      el("rssBar").style.width = Math.min(100, s.rss_bytes / MB / 10) + "%"; // /1GB scale
+      el("heapTxt").textContent = fmtMB(s.heap_bytes);
+      el("heapBar").style.width = Math.min(100, s.heap_bytes / MB / 10) + "%";
+
+      history.push(s.crawl_rate);
+      if (history.length > 60) history.shift();
+      drawChart();
+    }
+
+    function connect() {
+      const proto = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${proto}://${location.host}/ws/stats`);
+      ws.onopen = () => { el("status").textContent = "live"; el("dot").className = "w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"; };
+      ws.onmessage = (e) => apply(JSON.parse(e.data));
+      ws.onclose = () => {
+        el("status").textContent = "reconnecting…"; el("dot").className = "w-2.5 h-2.5 rounded-full bg-amber-400";
+        setTimeout(connect, 2000);
+      };
+      ws.onerror = () => ws.close();
+    }
+    connect();
+  </script>
+</body>
+</html>

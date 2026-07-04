@@ -1,0 +1,53 @@
+# Stackia Search — configuration tuned for a Raspberry Pi 4 (4 cores, 2–4 GB).
+# Every value here has a sane built-in default (see internal/config); this file
+# only needs to override what you care about. Seeds can also be passed with
+# -seeds on the command line.
+
+server:
+  addr: ":8080"
+
+crawler:
+  # Add your own seed URLs. With seeds set, the crawl stays on those hosts
+  # (and their subdomains if allow_subdomains is true). Leave empty for
+  # open-web mode (follows every link — use with care).
+  seeds:
+    - "https://en.wikipedia.org/wiki/Web_crawler"
+  workers: 64              # concurrent fetchers; the crawler is I/O bound
+  per_host_delay_ms: 1000  # politeness: min gap between requests to one host
+  per_host_inflight: 2     # max simultaneous requests per host
+  max_depth: 6             # link-following depth from the seeds
+  max_body_bytes: 2097152  # 2 MiB hard cap per page (OOM guard)
+  request_timeout_ms: 10000
+  user_agent: "StackiaBot/1.0 (+https://github.com/Maringouin10/stackia-search)"
+  respect_robots: true
+  allow_subdomains: true
+  queue_capacity: 4096     # bounded frontier hand-off — backpressure, not RAM blowup
+
+index:
+  path: "data/index"
+  batch_size: 256          # docs per index/store batch write
+  flush_interval_ms: 2000  # flush a partial batch at least this often
+  max_text_bytes: 65536    # cap indexed text per page (64 KiB)
+  snippet_bytes: 240       # stored preview length
+
+store:                     # BadgerDB (LSM KV) — caches bounded for low RAM
+  path: "data/store"
+  mem_table_mb: 16
+  num_memtables: 2
+  block_cache_mb: 64
+  index_cache_mb: 32
+  value_log_file_mb: 64
+  value_threshold: 1024
+  num_compactors: 2
+  compression_zstd: true
+
+bloom:                     # memory-mapped URL de-dup filter
+  path: "data/bloom/urls.bloom"
+  capacity: 10000000       # 10M URLs → ~11.4 MiB filter, ~1% false positives
+  false_positive: 0.01
+
+runtime:                   # memory guards that keep the Pi from OOMing
+  mem_limit_mb: 768        # GOMEMLIMIT soft heap cap
+  gc_percent: 40           # aggressive GC (default is 100)
+  max_procs: 0             # 0 = use all cores
+  free_os_memory_secs: 30  # periodically return freed pages to the kernel

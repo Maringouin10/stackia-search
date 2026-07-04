@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stackia Search</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .fade-in { animation: fade .25s ease both; }
+    @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body class="h-full bg-slate-50 text-slate-800">
+  <div id="app" class="min-h-full flex flex-col">
+    <!-- Header / search bar -->
+    <header class="w-full border-b border-slate-200 bg-white/80 backdrop-blur sticky top-0 z-10">
+      <div class="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
+        <a href="/" class="flex items-center gap-2 shrink-0">
+          <span class="inline-block w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-sky-400"></span>
+          <span class="font-semibold text-lg tracking-tight">Stackia</span>
+        </a>
+        <form id="searchForm" class="flex-1 flex items-center gap-2">
+          <div class="relative flex-1">
+            <input id="q" name="q" autocomplete="off" placeholder="Search the crawl…"
+              class="w-full rounded-full border border-slate-300 pl-11 pr-4 py-2.5 text-sm shadow-sm
+                     focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent" />
+            <svg class="absolute left-4 top-2.5 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.3-4.3m0 0A7.5 7.5 0 105.2 5.2a7.5 7.5 0 0011.5 11.5z"/>
+            </svg>
+          </div>
+          <button class="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 shadow-sm">
+            Search
+          </button>
+        </form>
+        <a href="/dashboard" class="text-xs text-slate-500 hover:text-indigo-600 shrink-0">Dashboard</a>
+      </div>
+    </header>
+
+    <!-- Results -->
+    <main class="flex-1 max-w-3xl w-full mx-auto px-4 py-6">
+      <p id="meta" class="text-xs text-slate-400 mb-4 h-4"></p>
+      <div id="results" class="space-y-6"></div>
+      <div id="empty" class="hidden text-center text-slate-400 py-24">
+        <p class="text-sm">Type a query and hit search.</p>
+        <p class="text-xs mt-2">Tip: use <code class="px-1 bg-slate-100 rounded">site:example.com</code> or "quoted phrases".</p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const el = (id) => document.getElementById(id);
+    const params = new URLSearchParams(location.search);
+
+    function esc(s) {
+      return (s || "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c]));
+    }
+
+    function render(data) {
+      const results = el("results");
+      results.innerHTML = "";
+      if (!data.results || data.results.length === 0) {
+        el("meta").textContent = data.query ? `No results for "${data.query}".` : "";
+        return;
+      }
+      el("meta").textContent =
+        `About ${data.total.toLocaleString()} results (${data.took_ms.toFixed(1)} ms)`;
+      for (const r of data.results) {
+        const host = esc(r.host || new URL(r.url).host);
+        const item = document.createElement("article");
+        item.className = "fade-in";
+        item.innerHTML = `
+          <div class="text-xs text-emerald-700 truncate">${esc(r.url)}</div>
+          <a href="${esc(r.url)}" target="_blank" rel="noopener"
+             class="text-lg text-indigo-700 hover:underline font-medium leading-snug">${esc(r.title)}</a>
+          <p class="text-sm text-slate-600 mt-1 leading-relaxed">${esc(r.snippet)}</p>
+          <div class="mt-1 text-[11px] text-slate-400">${host} · score ${r.score.toFixed(2)}</div>`;
+        results.appendChild(item);
+      }
+    }
+
+    async function run(q) {
+      el("q").value = q;
+      el("empty").classList.add("hidden");
+      el("meta").textContent = "Searching…";
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&n=15`);
+        render(await res.json());
+      } catch (e) {
+        el("meta").textContent = "Search failed: " + e;
+      }
+    }
+
+    el("searchForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const q = el("q").value.trim();
+      if (!q) return;
+      history.replaceState(null, "", `/?q=${encodeURIComponent(q)}`);
+      run(q);
+    });
+
+    if (params.get("q")) run(params.get("q"));
+    else el("empty").classList.remove("hidden");
+  </script>
+</body>
+</html>
